@@ -1,0 +1,38 @@
+# WoW Addon .gitignore
+
+# SavedVariables (user data - never commit)
+*.lua.bak
+SavedVariables/
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor Files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Backup Files
+*.backup
+*.tmp
+*_OLD.*
+
+# Development Files (keep in private repo only)
+*.py
+requirements.txt
+*.json
+analysis_report.txt
+translation_log.txt
+SELF_IMPROVEMENT*.md
+QUICK_START.md
+
+# Screenshot/Test Files
+*.png
+*.jpg
+*.jpeg
+*.pdf
+
