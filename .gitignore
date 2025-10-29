@@ -1,0 +1,39 @@
+# Analysis tools and results (not for distribution)
+_analysis/
+*.json
+credentials.json
+CONTEXT.md
+
+# Backup files
+*.bak
+*.backup
+TranslateWoW_Dictionary.lua.backup
+
+# Output files
+TranslateWoW_Output.txt
+
+# Screenshots
+*.png
+*.jpg
+*.jpeg
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# Virtual environment
+venv/
+env/
+
+# API keys and credentials
+*.env
+.env
+api_keys.txt
+
+# Analysis output
+*.csv
+translation_cache/

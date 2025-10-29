@@ -1,8 +1,8 @@
 ## Interface: 11200
 ## Title: |cFFFFFFFFCN to EN Translate|r
-## Notes: Chinese to English translation. 114K+ clean entries, no metadata clutter. Smart formatting. |cFF00FF00v0.1.2|r
+## Notes: Chinese to English translation. 114K+ clean entries, no metadata clutter. Smart formatting. |cFF00FF00v0.1.3|r
 ## Author: Sanjay Bhat
-## Version: 0.1.2
+## Version: 0.1.4
 ## Revision: $Id:$
 ## SavedVariables: TranslateWoWDB
 TranslateWoW_Dictionary.lua

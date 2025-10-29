@@ -1,6 +1,6 @@
 --[[
 	CN to EN Translate WoW
-	Version: 0.1.2
+	Version: 0.1.3
 	Author: Sanjay Bhat
 	Date: October 2025
 	
@@ -14,6 +14,15 @@
 	- Smart WoW markup preservation (item links, player names, colors)
 	- Automatic translation logging for quality improvement
 	- Zero performance impact (instant cached lookups)
+	
+	v0.1.3 Changes (Oct 29, 2025):
+	- FIXED: Item/quest links are now COMPLETELY preserved (Chinese name in chat, hover for English tooltip)
+	- SMART FIX: Player names show TRANSLATED in chat, but whisper uses real Chinese name!
+	- Item/quest links: Chinese name visible, but tooltip shows full English details on hover
+	- NEW: Enhanced translation logging with key-value format for easy extraction
+	- NEW: /tw log command to show translation log stats
+	- NEW: /tw clearlog command to clear translation log
+	- Translation log saves to: WTF/Account/[Account]/SavedVariables/TranslateWoW.lua
 	
 	v0.1.2 Changes:
 	- Fixed: Item links NO LONGER TRANSLATED (English client shows items correctly!)
@@ -35,6 +44,9 @@ local DEBUG = false  -- Disabled by default to reduce chat spam
 local TRANSLATE = true
 local LOG_TRANSLATIONS = true  -- Log translations for quality analysis
 
+-- Original AddMessage reference (for debug messages to avoid recursion)
+local originalChatAddMessage = nil
+
 -- SIMPLE translation system - just a hashmap!
 local translationQueue = {}
 local seenTexts = {} -- Simple hashmap: if text is here, we've seen it. That's it.
@@ -54,6 +66,7 @@ local OUTPUT_CHECK_INTERVAL = 0.1 -- Check output file every 100ms
 
 -- Saved variables
 TranslateWoWDB = TranslateWoWDB or {}
+TranslateWoWDB.version = "0.1.4"  -- Version marker to verify which addon is loaded
 TranslateWoWDB.translation_log = TranslateWoWDB.translation_log or {}
 
 -- Function to check if text contains Chinese characters
@@ -99,6 +112,8 @@ local function checkOutputFile()
 end
 
 -- Log translation for quality analysis
+-- Logs are saved to: WTF/Account/[AccountName]/SavedVariables/TranslateWoW.lua
+-- You can extract the translation_log table from this file after logout/reload
 local function logTranslation(chinese, translation)
     if not LOG_TRANSLATIONS or not chinese or not translation then
         return
@@ -111,27 +126,55 @@ local function logTranslation(chinese, translation)
     
     -- Only log if Chinese is present and translation is different
     if containsChinese(chinese) and chinese ~= translation then
+        -- IMPORTANT: Wipe old array-format logs if they exist
+        -- Check if translation_log is using old array format
+        if type(TranslateWoWDB.translation_log) == "table" and TranslateWoWDB.translation_log[1] then
+            -- Old format detected - clear it
+            TranslateWoWDB.translation_log = {}
+            debug("Cleared old format logs. Using new key-value format.")
+        end
+        
         -- Store in SavedVariables (will be written on /reload or logout)
-        -- Format: CHINESE|TRANSLATION
-        local log_entry = chinese .. "|" .. translation
+        -- Format: Simple key-value pairs for easy extraction
+        -- This makes it easy to export to CSV or process with external tools
         
-        -- Check if already logged (avoid duplicates)
-        local already_logged = false
-        for _, entry in ipairs(TranslateWoWDB.translation_log) do
-            if entry == log_entry then
-                already_logged = true
-                break
-            end
+        -- Use Chinese text as key to avoid duplicates automatically
+        if not TranslateWoWDB.translation_log[chinese] then
+            TranslateWoWDB.translation_log[chinese] = translation
         end
-        
-        if not already_logged then
-            table.insert(TranslateWoWDB.translation_log, log_entry)
-            
-            -- Keep log size reasonable (max 1000 entries)
-            if table.getn(TranslateWoWDB.translation_log) > 1000 then
-                table.remove(TranslateWoWDB.translation_log, 1)  -- Remove oldest
-            end
+    end
+end
+
+-- Function to export translation log to chat (for copying)
+local function exportTranslationLog()
+    if not TranslateWoWDB.translation_log then
+        DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000No translations logged yet.|r")
+        return
+    end
+    
+    local count = 0
+    for _ in pairs(TranslateWoWDB.translation_log) do
+        count = count + 1
+    end
+    
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00Translation Log:|r")
+    DEFAULT_CHAT_FRAME:AddMessage(string.format("Total entries: %d", count))
+    DEFAULT_CHAT_FRAME:AddMessage("Saved to: WTF/Account/[YourAccount]/SavedVariables/TranslateWoW.lua")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Format:|r Chinese text = English translation")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00To extract:|r Open the SavedVariables file and look for 'translation_log' table")
+end
+
+-- Function to clear translation log
+local function clearTranslationLog()
+    if TranslateWoWDB.translation_log then
+        local count = 0
+        for _ in pairs(TranslateWoWDB.translation_log) do
+            count = count + 1
         end
+        TranslateWoWDB.translation_log = {}
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cFFFF0000Cleared %d translation log entries.|r", count))
+    else
+        DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000No translations to clear.|r")
     end
 end
 
@@ -361,46 +404,50 @@ end
 
 -- OLD translateText function removed - using dictionary-based one above (line 89)
 
--- Function to check if hyperlink should be translated (only player names, NOT items!)
+-- Function to smartly handle hyperlinks
 local function translateHyperlinkContent(linkCode)
-    -- Check if this is an ITEM link - if so, DON'T translate it!
-    -- Item links: |Hitem:12345:...|h[ItemName]|h
-    -- Player links: |Hplayer:Name|h[Name]|h
-    -- Quest links: |Hquest:123|h[QuestName]|h
+    -- SMART HYPERLINK HANDLING:
+    -- Item links: Keep link data intact, but translate display text for better UX
+    -- Player links: Keep player name intact for whisper, but translate display text
+    -- Quest links: Keep quest ID intact
+    --
+    -- Structure: |Htype:data|h[DisplayText]|h
+    -- - type:data = the actual link data (NEVER translate this!)
+    -- - [DisplayText] = what shows in chat (can translate this!)
     
-    if string.find(linkCode, "|Hitem:") then
-        -- ITEM LINK - DO NOT TRANSLATE!
-        -- User has English client, item will show correctly on hover
-        return linkCode
+    -- Extract components using proper pattern matching
+    -- Pattern: |Htype:data|h[DisplayText]|h
+    local linkData = string.match(linkCode, "|H(.-)|h")  -- e.g., "item:12345:..." or "player:中文名"
+    local displayText = string.match(linkCode, "%[(.-)%]")  -- Text between brackets
+    
+    if not linkData or not displayText then
+        return linkCode  -- Malformed, return as-is
     end
     
-    if string.find(linkCode, "|Hquest:") then
-        -- QUEST LINK - DO NOT TRANSLATE!
-        -- Quests are handled separately
-        return linkCode
-    end
+    -- Check link type
+    local linkType = string.match(linkData, "^(%w+):")
     
-    -- Only translate PLAYER names if they contain Chinese
-    if string.find(linkCode, "|Hplayer:") then
-        -- Extract the display text from |Hplayer:data|h[DISPLAY_TEXT]|h
-        local displayStart, displayEnd = string.find(linkCode, "%[.-%]")
-        if displayStart then
-            local displayText = string.sub(linkCode, displayStart + 1, displayEnd - 1)
-            
-            -- Only translate if it contains Chinese
-            if containsChinese(displayText) then
-                local translatedDisplay = translateText(displayText)
-                
-                -- Reconstruct the link with translated display text
-                local beforeBracket = string.sub(linkCode, 1, displayStart)
-                local afterBracket = string.sub(linkCode, displayEnd, string.len(linkCode))
-                
-                return beforeBracket .. translatedDisplay .. afterBracket
-            end
+    if linkType == "item" or linkType == "quest" then
+        -- ITEM/QUEST LINKS: Keep display text AS-IS (don't translate)
+        -- The item ID is intact, so tooltip shows correct English name on hover
+        -- Keep Chinese name in chat, user can hover to see full English details
+        debug("Preserved item/quest link: " .. linkCode)
+        return linkCode
+        
+    elseif linkType == "player" then
+        -- PLAYER LINKS: Translate display text, keep data intact
+        -- Structure: |Hplayer:ActualName|h[DisplayName]|h
+        -- The ActualName is used for whisper (must stay Chinese)
+        -- The DisplayName can be translated for readability
+        if containsChinese(displayText) then
+            local translatedDisplay = translateText(displayText)
+            local result = "|H" .. linkData .. "|h[" .. translatedDisplay .. "]|h"
+            debug("Translated player link display: " .. displayText .. " -> " .. translatedDisplay)
+            return result
         end
     end
     
-    -- For any other hyperlink type, return as-is
+    -- For any other link type or no Chinese, return as-is
     return linkCode
 end
 
@@ -410,33 +457,35 @@ local function translateChatMessage(text)
         return text
     end
     
-    -- Step 1: Process hyperlinks FIRST (translate content inside brackets)
+    -- Step 1: EXTRACT and PROCESS hyperlinks (translate display text, keep link data)
     local workText = text
     local hyperlinkPattern = "|H.-|h%[.-%]|h"
-    local processedText = ""
-    local lastPos = 1
+    local hyperlinks = {}  -- Store processed hyperlinks
+    local hyperlinkIndex = 0
     
+    -- Replace all hyperlinks with placeholders (after processing them)
     while true do
-        local linkStart, linkEnd = string.find(workText, hyperlinkPattern, lastPos)
+        local linkStart, linkEnd = string.find(workText, hyperlinkPattern)
         if not linkStart then
-            -- No more hyperlinks, append remaining text
-            processedText = processedText .. string.sub(workText, lastPos)
             break
         end
         
-        -- Append text before the hyperlink
-        processedText = processedText .. string.sub(workText, lastPos, linkStart - 1)
-        
-        -- Extract and translate the hyperlink
+        -- Extract the hyperlink
         local hyperlink = string.sub(workText, linkStart, linkEnd)
-        local translatedLink = translateHyperlinkContent(hyperlink)
-        processedText = processedText .. translatedLink
         
-        -- Move past this hyperlink
-        lastPos = linkEnd + 1
+        -- PROCESS the hyperlink (translate display text if needed)
+        local processedHyperlink = translateHyperlinkContent(hyperlink)
+        
+        -- Create a unique placeholder
+        hyperlinkIndex = hyperlinkIndex + 1
+        local placeholder = "<<HYPERLINK" .. hyperlinkIndex .. ">>"
+        hyperlinks[placeholder] = processedHyperlink
+        
+        debug("Extracted hyperlink " .. hyperlinkIndex .. ": " .. hyperlink)
+        
+        -- Replace hyperlink with placeholder
+        workText = string.sub(workText, 1, linkStart - 1) .. placeholder .. string.sub(workText, linkEnd + 1)
     end
-    
-    workText = processedText
     
     -- Step 2: Extract and replace remaining WoW formatting codes with placeholders
     local codes = {}
@@ -472,7 +521,7 @@ local function translateChatMessage(text)
         end
     end
     
-    -- Step 3: Now translate the remaining plain text (hyperlinks already translated)
+    -- Step 3: Now translate the remaining plain text (NO hyperlinks in it now!)
     local translatedText = translateText(workText)
     
     -- Step 4: Restore all WoW codes from placeholders
@@ -481,11 +530,24 @@ local function translateChatMessage(text)
         translatedText = string.gsub(translatedText, placeholder, code)
     end
     
+    -- Step 5: Restore all hyperlinks from placeholders (LAST step!)
+    for placeholder, hyperlink in pairs(hyperlinks) do
+        -- Escape special characters in placeholder for gsub
+        local escapedPlaceholder = string.gsub(placeholder, "([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1")
+        translatedText = string.gsub(translatedText, escapedPlaceholder, hyperlink)
+        debug("Restored hyperlink: " .. hyperlink)
+    end
+    
     return translatedText
 end
 
 -- Function to hook chat frames for instant dictionary translation
 local function hookChatFrames()
+    -- Save original ChatFrame1 AddMessage for debug output (avoid recursion)
+    if not originalChatAddMessage and DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        originalChatAddMessage = DEFAULT_CHAT_FRAME.AddMessage
+    end
+    
     -- Hook all chat frames
     for i = 1, NUM_CHAT_WINDOWS do
         local frameName = "ChatFrame" .. i
@@ -500,6 +562,9 @@ local function hookChatFrames()
                 if text and TRANSLATE and containsChinese(text) then
                     -- Translate while preserving WoW markup
                     local translatedText = translateChatMessage(text)
+                    
+                    -- Log the FULL message translation (for quality analysis)
+                    logTranslation(text, translatedText)
                     
                     -- If translation found, show it
                     if translatedText ~= text then
@@ -635,8 +700,12 @@ end
 
 -- Initialize the addon
 function twInit()
-    -- Notify the user that we're loading
-    DEFAULT_CHAT_FRAME:AddMessage("Loading TranslateWoW v2.0.0 'Real-time API Translation!'")
+    -- Notify the user that we're loading with CLEAR version identifier
+    DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000=====================================================|r")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00TranslateWoW v0.1.4 LOADED|r")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00FIX: Items preserved, Player names translated (whisper works!)|r")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Type /tw for commands|r")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000=====================================================|r")
     
     -- Register events we want to listen for
     this:RegisterEvent("ADDON_LOADED")
@@ -660,7 +729,7 @@ function twInit()
         end
     end)
     
-    debug("TranslateWoW initialized with file-based translation system")
+    debug("TranslateWoW initialized with dictionary-based translation system")
 end
 
 -- Handle events
@@ -731,18 +800,33 @@ function twEvent()
                     seenCount = seenCount + 1
                 end
                 
+                -- Count logged translations
+                local logCount = 0
+                if TranslateWoWDB.translation_log then
+                    for _ in pairs(TranslateWoWDB.translation_log) do
+                        logCount = logCount + 1
+                    end
+                end
+                
                 DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00TranslateWoW Status:|r")
                 DEFAULT_CHAT_FRAME:AddMessage("- Translation Queue: " .. table.getn(translationQueue) .. " items")
                 DEFAULT_CHAT_FRAME:AddMessage("- Cached Translations: " .. cacheCount .. " entries")
                 DEFAULT_CHAT_FRAME:AddMessage("- Seen Texts: " .. seenCount .. " (marked, won't re-request)")
                 DEFAULT_CHAT_FRAME:AddMessage("- Pending Requests: " .. pendingCount)
+                DEFAULT_CHAT_FRAME:AddMessage("- Logged Translations: " .. logCount .. " unique entries")
                 DEFAULT_CHAT_FRAME:AddMessage("- Translation: " .. (TRANSLATE and "|cFF00FF00Enabled|r" or "|cFFFF0000Disabled|r"))
                 DEFAULT_CHAT_FRAME:AddMessage("- Debug: " .. (DEBUG and "|cFF00FF00On|r" or "|cFFFF0000Off|r"))
+            elseif msg == "log" or msg == "export" then
+                exportTranslationLog()
+            elseif msg == "clearlog" then
+                clearTranslationLog()
             else
-                DEFAULT_CHAT_FRAME:AddMessage("TranslateWoW Commands:")
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00TranslateWoW Commands:|r")
                 DEFAULT_CHAT_FRAME:AddMessage("/tw toggle - Enable/disable translation")
                 DEFAULT_CHAT_FRAME:AddMessage("/tw debug - Enable/disable debug messages")
                 DEFAULT_CHAT_FRAME:AddMessage("/tw status - Show translation system status")
+                DEFAULT_CHAT_FRAME:AddMessage("/tw log - Show translation log info")
+                DEFAULT_CHAT_FRAME:AddMessage("/tw clearlog - Clear translation log")
             end
         end
 
@@ -769,9 +853,15 @@ function twEvent()
     -- No need for CHAT_MSG_* event handlers anymore!
 end
 
--- Debug function
+-- Debug function (uses original AddMessage to avoid recursion)
 function debug(text)
     if DEBUG then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00[TranslateWoW]|r " .. text)
+        if originalChatAddMessage then
+            -- Use original AddMessage to avoid triggering the hook recursively
+            originalChatAddMessage(DEFAULT_CHAT_FRAME, "|cFFFFFF00[TranslateWoW]|r " .. text)
+        else
+            -- Fallback if original not saved yet
+            print("[TranslateWoW] " .. text)
+        end
     end
 end
