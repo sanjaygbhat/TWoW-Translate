@@ -2,7 +2,7 @@
 
 A real-time Chinese-to-English translation addon for World of Warcraft with grammar-aware natural language processing.
 
-![Version](https://img.shields.io/badge/version-0.1.5-blue.svg)
+![Version](https://img.shields.io/badge/version-0.1.7-blue.svg)
 ![WoW](https://img.shields.io/badge/wow-1.12.1-orange.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
@@ -11,6 +11,7 @@ A real-time Chinese-to-English translation addon for World of Warcraft with gram
 - 🌐 **Real-time Translation** - Automatically translates Chinese chat messages to English
 - 📖 **Comprehensive Dictionary** - 114,000+ entries covering common Chinese words and WoW-specific terms
 - 🧠 **Grammar-Aware** - Natural translations with proper questions, tense, and flow (v0.1.5)
+- 💡 **Interactive Tooltips** - Hover over cyan Chinese text for detailed explanations with smart word-wrapping (v0.1.7)
 - 🔗 **Smart Link Handling** - Item links remain in Chinese for hover tooltips, but player names are clickable for whispers
 - 📊 **Translation Logging** - Track all translations for continuous improvement
 - ⚡ **Lightweight** - Only 4.5 MB, no performance impact

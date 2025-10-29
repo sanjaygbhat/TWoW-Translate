@@ -8,14 +8,10 @@ CONTEXT.md
 *.bak
 *.backup
 TranslateWoW_Dictionary.lua.backup
+Backup/
 
 # Output files
 TranslateWoW_Output.txt
-
-# Screenshots
-*.png
-*.jpg
-*.jpeg
 
 # Python cache
 __pycache__/

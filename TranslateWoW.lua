@@ -1,6 +1,6 @@
 --[[
 	CN to EN Translate WoW
-	Version: 0.1.5
+	Version: 0.1.7
 	Author: Sanjay Bhat
 	Date: October 2025
 	
@@ -15,6 +15,19 @@
 	- Smart WoW markup preservation (item links, player names, colors)
 	- Automatic translation logging for quality improvement
 	- Zero performance impact (instant cached lookups)
+	
+	v0.1.7 Changes (Oct 29, 2025):
+	- TOOLTIP FORMAT: Fixed awkward line breaks and orphaned words in hover tooltips
+	- BALANCED: Smart word-wrap prevents short single-word lines (e.g., "Tibet" alone)
+	- OPTIMIZED: 45-char line width for better readability
+	- POLISH: Cleaner, more professional tooltip presentation
+	
+	v0.1.6 Changes (Oct 29, 2025):
+	- TOOLTIPS: Interactive tooltips for complex terms! Hover over light yellow text for explanations
+	- FIXED: Player names no longer translated (kept as original Chinese)
+	- CLEANED: 2,426 overly verbose dictionary entries shortened for cleaner chat
+	- SMART: Detailed explanations moved to hover tooltips (click for full details)
+	- SYSTEM: Google Cloud Translation API analyzer for objective quality metrics
 	
 	v0.1.5 Changes (Oct 29, 2025):
 	- GRAMMAR: Added 80+ grammar-aware phrases (aspect markers, question particles)
@@ -74,8 +87,12 @@ local OUTPUT_CHECK_INTERVAL = 0.1 -- Check output file every 100ms
 
 -- Saved variables
 TranslateWoWDB = TranslateWoWDB or {}
-TranslateWoWDB.version = "0.1.5"  -- Version marker to verify which addon is loaded
+TranslateWoWDB.version = "0.1.7"  -- Version marker to verify which addon is loaded
 TranslateWoWDB.translation_log = TranslateWoWDB.translation_log or {}
+
+-- Tooltip dictionary (loaded from TranslateWoW_Tooltips.lua)
+-- Will contain detailed explanations for complex terms
+TranslateWoW_Tooltips = TranslateWoW_Tooltips or {}
 
 -- Function to check if text contains Chinese characters
 local function containsChinese(text)
@@ -223,6 +240,23 @@ local function applyGrammarRules(originalChinese, translatedEnglish)
 end
 
 -- ===============================================================================
+-- TOOLTIP-AWARE TRANSLATION HELPER
+-- Wraps Chinese text in tooltips if detailed explanation exists
+-- Shows original Chinese (highlighted) with full translation on hover
+-- ===============================================================================
+local function wrapWithTooltip(originalChinese, translation)
+    -- Check if this term has a detailed explanation in the tooltip dictionary
+    if TranslateWoW_Tooltips and TranslateWoW_Tooltips[originalChinese] then
+        -- Keep the Chinese text visible but make it interactive
+        -- Format: |Htwinfo:chinese_text|h[Chinese]|h
+        -- Color it light cyan/yellow to show it's hoverable
+        local encodedChinese = string.gsub(originalChinese, ":", "")  -- Remove colons for safety
+        return "|cFF00FFFF|Htwinfo:" .. encodedChinese .. "|h[" .. originalChinese .. "]|h|r"
+    end
+    return translation
+end
+
+-- ===============================================================================
 -- ABSOLUTE MAXIMUM DICTIONARY-BASED TRANSLATION - NO COMPROMISES
 -- ULTIMATE Quality Features:
 -- 1. Greedy longest-match-first (up to 15 chars for complete sentences)
@@ -252,6 +286,7 @@ local function translateText(text)
     -- Try direct dictionary lookup (fastest path)
     if TranslateWoW_Dictionary and TranslateWoW_Dictionary[text] then
         local translation = TranslateWoW_Dictionary[text]
+        translation = wrapWithTooltip(text, translation)  -- Wrap with tooltip link if available
         translationCache[text] = translation
         logTranslation(text, translation)  -- Log for analysis
         return translation
@@ -278,6 +313,7 @@ local function translateText(text)
                 
                 if TranslateWoW_Dictionary[phrase] then
                     matchedTranslation = TranslateWoW_Dictionary[phrase]
+                    matchedTranslation = wrapWithTooltip(phrase, matchedTranslation)  -- Wrap with tooltip if available
                     
                     -- SMART SPACING: Add space before translation if needed
                     if result ~= "" and lastWasChinese then
@@ -483,16 +519,12 @@ local function translateHyperlinkContent(linkCode)
         return linkCode
         
     elseif linkType == "player" then
-        -- PLAYER LINKS: Translate display text, keep data intact
+        -- PLAYER LINKS: Keep player names AS-IS (don't translate)
         -- Structure: |Hplayer:ActualName|h[DisplayName]|h
-        -- The ActualName is used for whisper (must stay Chinese)
-        -- The DisplayName can be translated for readability
-        if containsChinese(displayText) then
-            local translatedDisplay = translateText(displayText)
-            local result = "|H" .. linkData .. "|h[" .. translatedDisplay .. "]|h"
-            debug("Translated player link display: " .. displayText .. " -> " .. translatedDisplay)
-            return result
-        end
+        -- Player names are proper nouns and should stay in original Chinese
+        -- This is especially important for Chinese servers where names are meaningful
+        debug("Preserved player link: " .. linkCode)
+        return linkCode
     end
     
     -- For any other link type or no Chinese, return as-is
@@ -630,6 +662,158 @@ local function hookChatFrames()
     end
 end
 
+-- ===============================================================================
+-- CUSTOM HYPERLINK TOOLTIP SYSTEM
+-- Shows detailed explanations when hovering over translated terms with tooltips
+-- ===============================================================================
+local function setupTooltipHyperlinks()
+    -- Hook SetItemRef the vanilla 1.12 way (save original and wrap it)
+    local originalSetItemRef = SetItemRef
+    SetItemRef = function(link, text, button)
+        if link and string.find(link, "^twinfo:") then
+            -- Extract the Chinese term from the link
+            local chineseTerm = string.gsub(link, "^twinfo:", "")
+            
+            -- Find the corresponding tooltip
+            local explanation = nil
+            for chinese, tooltip in pairs(TranslateWoW_Tooltips) do
+                local encodedChinese = string.gsub(chinese, ":", "")
+                if encodedChinese == chineseTerm then
+                    explanation = tooltip
+                    break
+                end
+            end
+            
+            if explanation then
+                -- Print full explanation to chat when clicked (simple format)
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[" .. text .. "]|r")
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFFFF" .. explanation .. "|r")
+            else
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000No detailed explanation available.|r")
+            end
+        else
+            -- Call original for all other link types
+            originalSetItemRef(link, text, button)
+        end
+    end
+    
+    -- Set up OnHyperlinkEnter/Leave for all chat frames
+    for i = 1, NUM_CHAT_WINDOWS do
+        local frameName = "ChatFrame" .. i
+        local frame = getglobal(frameName)
+        
+        if frame then
+            -- OnHyperlinkEnter - show tooltip
+            frame:SetScript("OnHyperlinkEnter", function()
+                local linkData = arg1
+                local linkText = arg2
+                
+                if linkData and string.find(linkData, "^twinfo:") then
+                    -- Extract the Chinese term
+                    local chineseTerm = string.gsub(linkData, "^twinfo:", "")
+                    
+                    -- Find the corresponding tooltip
+                    local explanation = nil
+                    local originalChinese = nil
+                    for chinese, tooltip in pairs(TranslateWoW_Tooltips) do
+                        local encodedChinese = string.gsub(chinese, ":", "")
+                        if encodedChinese == chineseTerm then
+                            explanation = tooltip
+                            originalChinese = chinese
+                            break
+                        end
+                    end
+                    
+                    if explanation then
+                        -- Capitalize first letter
+                        local formatted = string.upper(string.sub(explanation, 1, 1)) .. string.sub(explanation, 2)
+                        
+                        -- Show GameTooltip
+                        GameTooltip:SetOwner(this, "ANCHOR_CURSOR")
+                        GameTooltip:ClearLines()
+                        GameTooltip:AddLine(originalChinese or linkText, 1, 0.8, 0.2)  -- Gold title
+                        
+                        -- Smart word wrap at 45 characters (prevents orphaned words)
+                        local words = {}
+                        for word in string.gfind(formatted, "[^%s]+") do
+                            table.insert(words, word)
+                        end
+                        
+                        local lines = {}
+                        local line = ""
+                        
+                        for i, word in ipairs(words) do
+                            local testLine = line
+                            if testLine ~= "" then
+                                testLine = testLine .. " " .. word
+                            else
+                                testLine = word
+                            end
+                            
+                            if string.len(testLine) > 45 then
+                                -- Would be too long - add current line
+                                if line ~= "" then
+                                    table.insert(lines, line)
+                                end
+                                line = word
+                            else
+                                line = testLine
+                            end
+                        end
+                        
+                        -- Handle last line - prevent orphaned short words
+                        if line ~= "" then
+                            -- If last line is very short (< 12 chars) and we have previous lines,
+                            -- try to move a word from the previous line
+                            if string.len(line) < 12 and table.getn(lines) > 0 then
+                                local prevLine = lines[table.getn(lines)]
+                                local prevWords = {}
+                                for w in string.gfind(prevLine, "[^%s]+") do
+                                    table.insert(prevWords, w)
+                                end
+                                
+                                if table.getn(prevWords) > 1 then
+                                    -- Move last word from previous line to current line
+                                    local movedWord = prevWords[table.getn(prevWords)]
+                                    table.remove(prevWords)
+                                    
+                                    -- Rebuild previous line
+                                    local newPrevLine = table.concat(prevWords, " ")
+                                    lines[table.getn(lines)] = newPrevLine
+                                    
+                                    -- Add to current line
+                                    line = movedWord .. " " .. line
+                                end
+                            end
+                            table.insert(lines, line)
+                        end
+                        
+                        -- Display all lines
+                        for _, l in ipairs(lines) do
+                            GameTooltip:AddLine(l, 1, 1, 1, 1)
+                        end
+                        
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddLine("Click for details", 0.5, 1, 0.5)
+                        GameTooltip:Show()
+                    end
+                end
+            end)
+            
+            -- OnHyperlinkLeave - hide tooltip
+            frame:SetScript("OnHyperlinkLeave", function()
+                if arg1 and string.find(arg1, "^twinfo:") then
+                    GameTooltip:Hide()
+                end
+            end)
+            
+            debug("Hooked " .. frameName .. " for custom tooltips")
+        end
+    end
+    
+    debug("Custom tooltip hyperlinks initialized")
+end
+
 -- Function to hook tooltips for translation (vanilla 1.12 compatible)
 local function hookTooltips()
     -- Hook GameTooltip for item tooltips using vanilla 1.12 method
@@ -750,8 +934,8 @@ end
 function twInit()
     -- Notify the user that we're loading with CLEAR version identifier
     DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000=====================================================|r")
-    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00TranslateWoW v0.1.5 LOADED|r")
-    DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00NEW: Grammar-aware translations (questions, tense, natural flow)|r")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00TranslateWoW v0.1.7 LOADED|r")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFFHover over CYAN Chinese text for full translations!|r")
     DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Type /tw for commands|r")
     DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000=====================================================|r")
     
@@ -809,6 +993,9 @@ function twEvent()
         
         -- Set up tooltip hooking
         hookTooltips()
+        
+        -- Set up custom hyperlink tooltips
+        setupTooltipHyperlinks()
         
         -- Initialize response table
         if not TranslateWoWDB.responses then
@@ -868,6 +1055,31 @@ function twEvent()
                 exportTranslationLog()
             elseif msg == "clearlog" then
                 clearTranslationLog()
+            elseif msg == "test" then
+                -- Test tooltip system
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Testing tooltip system:|r")
+                
+                -- Test if tooltips dictionary loaded
+                local tooltipCount = 0
+                local firstKey = nil
+                for key, _ in pairs(TranslateWoW_Tooltips) do
+                    tooltipCount = tooltipCount + 1
+                    if not firstKey then
+                        firstKey = key
+                    end
+                end
+                DEFAULT_CHAT_FRAME:AddMessage("Tooltip entries loaded: " .. tooltipCount)
+                
+                -- Create a test link using the first entry we find
+                if firstKey then
+                    local encoded = string.gsub(firstKey, ":", "")
+                    local testLink = "|cFF00FFFF|Htwinfo:" .. encoded .. "|h[" .. firstKey .. "]|h|r"
+                    DEFAULT_CHAT_FRAME:AddMessage("Test link: " .. testLink)
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Hover over the cyan text above to see tooltip!|r")
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Click it to print full explanation!|r")
+                else
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000No tooltip entries found!|r")
+                end
             else
                 DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00TranslateWoW Commands:|r")
                 DEFAULT_CHAT_FRAME:AddMessage("/tw toggle - Enable/disable translation")
@@ -875,6 +1087,7 @@ function twEvent()
                 DEFAULT_CHAT_FRAME:AddMessage("/tw status - Show translation system status")
                 DEFAULT_CHAT_FRAME:AddMessage("/tw log - Show translation log info")
                 DEFAULT_CHAT_FRAME:AddMessage("/tw clearlog - Clear translation log")
+                DEFAULT_CHAT_FRAME:AddMessage("/tw test - Test tooltip system")
             end
         end
 

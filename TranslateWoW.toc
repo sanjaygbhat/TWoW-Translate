@@ -5,6 +5,7 @@
 ## Version: 0.1.4
 ## Revision: $Id:$
 ## SavedVariables: TranslateWoWDB
+TranslateWoW_Tooltips.lua
 TranslateWoW_Dictionary.lua
 TranslateWoW.lua
 TranslateWoW.xml
