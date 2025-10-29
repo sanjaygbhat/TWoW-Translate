@@ -1,0 +1,63 @@
+======================================================================
+Translation Improvement Summary
+======================================================================
+
+Generated: 2025-10-29 17:54:51
+Total entries analyzed: 77
+Entries needing improvement: 75
+Average similarity of improved entries: 13.8%
+
+======================================================================
+Top 10 Most Different Translations
+======================================================================
+
+1. Similarity: 0.0%
+   Chinese: 奥瑞莉娅
+   Addon:   Austria lucky jasmine address term between sons-in-law
+   Google:  Oreria
+
+2. Similarity: 0.0%
+   Chinese: 灬幕后黑手灬
+   Addon:   \\
+   Google:  灬The mastermind灬
+
+3. Similarity: 0.0%
+   Chinese: 专门拗造型
+   Addon:   specialist拗to model
+   Google:  Specially posing
+
+4. Similarity: 0.0%
+   Chinese: 我是旱鸭子
+   Addon:   me yes non-swimmer
+   Google:  I'm a landlubber
+
+5. Similarity: 0.0%
+   Chinese: 迪菲亚司机
+   Addon:   to enlighten |菲律宾 Asia chauffeur
+   Google:  Defias driver
+
+6. Similarity: 0.0%
+   Chinese: 弟夫
+   Addon:   younger brother husband
+   Google:  brother-in-law
+
+7. Similarity: 0.0%
+   Chinese: 枝鎏丨费迪南
+   Addon:   branch |镏 radical in Chinese characters费to enlighten南
+   Google:  Zhi Liu | Ferdinand
+
+8. Similarity: 0.0%
+   Chinese: 术浅浅
+   Addon:   method sound of moving water sound of moving water
+   Google:  shallow skills
+
+9. Similarity: 0.0%
+   Chinese: 还是那么酷
+   Addon:   or like that ruthless
+   Google:  Still so cool
+
+10. Similarity: 0.0%
+   Chinese: 爱泽拉
+   Addon:   love pool to pull
+   Google:  Azera
+
