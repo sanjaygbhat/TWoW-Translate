@@ -2,20 +2,20 @@
 
 A real-time Chinese-to-English translation addon for World of Warcraft with grammar-aware natural language processing.
 
-![Version](https://img.shields.io/badge/version-0.1.7-blue.svg)
+![Version](https://img.shields.io/badge/version-0.1.8-blue.svg)
 ![WoW](https://img.shields.io/badge/wow-1.12.1-orange.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## Features
 
 - 🌐 **Real-time Translation** - Automatically translates Chinese chat messages to English
-- 📖 **Comprehensive Dictionary** - 114,000+ entries covering common Chinese words and WoW-specific terms
+- 📖 **Comprehensive Dictionary** - 116,852 entries (114K main + 2.4K tooltips) covering common Chinese and WoW terms
 - 🧠 **Grammar-Aware** - Natural translations with proper questions, tense, and flow (v0.1.5)
 - 💡 **Interactive Tooltips** - Hover over cyan Chinese text for detailed explanations with smart word-wrapping (v0.1.7)
-- 🔗 **Smart Link Handling** - Item links remain in Chinese for hover tooltips, but player names are clickable for whispers
+- 🎮 **Gaming Slang** - 80+ WoW raid/dungeon terms from real gameplay (v0.1.8)
+- 🔗 **Smart Link Handling** - Item links remain in Chinese for hover tooltips, player names preserved for invites
 - 📊 **Translation Logging** - Track all translations for continuous improvement
 - ⚡ **Lightweight** - Only 4.5 MB, no performance impact
-- 🎮 **WoW-Optimized** - Special handling for raid terms, class names, and gaming slang
 
 ## Installation
 
@@ -40,7 +40,10 @@ The addon works automatically once installed. All Chinese chat messages will be 
 |---------|-------------|
 | `/tw` | Show addon information and version |
 | `/tw status` | Display translation statistics |
+| `/tw log` | Show translation log information |
 | `/tw clearlog` | Clear translation logs |
+| `/tw test` | Test tooltip system with sample interactive link |
+| `/tw toggle` | Enable/disable translation |
 | `/tw debug` | Toggle debug mode (for development) |
 
 ## How It Works
@@ -57,8 +60,8 @@ The addon works automatically once installed. All Chinese chat messages will be 
 The addon uses a **grammar-aware hybrid approach**:
 
 ### Dictionary Foundation
-- **114K+ entries** from CC-CEDICT plus WoW-specific terms
-- **Longest-match-first** algorithm for phrase recognition
+- **116,852 entries**: 114K from CC-CEDICT + 80+ gaming slang + 2.4K cultural tooltips
+- **Longest-match-first** algorithm (up to 15 characters) for phrase recognition
 - **Fast, offline** translations with instant cached lookups
 
 ### Grammar Intelligence (v0.1.5)
@@ -69,9 +72,11 @@ The addon uses a **grammar-aware hybrid approach**:
 - **Negation patterns** (不/没/别) - proper negative constructions
 - **Post-processing rules** - punctuation, spacing, question marks
 
-### WoW Gaming Optimization
-- **Context-specific** translations for raids, dungeons, parties
-- **75-82% coverage** of common WoW chat grammar patterns
+### WoW Gaming Optimization (v0.1.8)
+- **80+ Gaming Terms**: 开组 = "forming", 速刷 = "speed run", 周常 = "weekly"
+- **Frozen Phrases**: Multi-character terms prevent wrong splitting (精华满 = "Essence full")
+- **Real-World Tested**: Refined using 664 actual gameplay translations
+- **Raid/Dungeon Slang**: 老克 = "KT", 龙虎金 = "ZG Tiger/Raptor", 妖器 = "Trinket"
 - **Continuous improvement** through translation logging and analysis
 
 ### Example Translations
@@ -100,9 +105,24 @@ Chinese: 马上来
 English: coming soon ✓ (time + direction)
 ```
 
+**Real WoW Chat (v0.1.8):**
+```
+Chinese: 10人klz全通周常速刷，镰刀1/2，强力T补过载
+English: 10m KLZ full clear weekly speed run, Scythe 1/2, strong T Overload
+
+Chinese: 午夜KLZ 镰刀 精华满 来DPS 有遗产剑
+English: Midnight KLZ Scythe Essence full LFM DPS have Legacy Sword
+
+Chinese: 黑龙开组 包包不限 来个MS
+English: Onyxia forming bags open LFM MS
+
+Chinese: NAXX 冰龙老克修车 来T
+English: NAXX Sapph KT repair run need T
+```
+
 ## Performance
 
-- **Dictionary Size**: 4.5 MB (114,387 entries)
+- **Dictionary Size**: 4.5 MB (114,437 main + 2,415 tooltips = 116,852 total entries)
 - **Memory Usage**: ~15-20 MB in-game
 - **Load Time**: < 1 second
 - **Translation Speed**: Instant (local lookup)
@@ -172,12 +192,14 @@ TranslateWoW_Dictionary = {
 ```
 
 ### Translation Algorithm
-1. Extract hyperlinks (preserve structure)
-2. Match longest phrases first (8+ characters)
+1. Extract and preserve WoW hyperlinks (items, quests, players)
+2. Match longest phrases first (up to 15 characters)
 3. Match medium phrases (4-7 characters)
 4. Match short phrases (2-3 characters)
-5. Match individual words
-6. Restore hyperlinks with translated text
+5. Match individual characters
+6. Apply grammar post-processing rules (questions, spacing, punctuation)
+7. Wrap tooltip-enabled terms with interactive hyperlinks
+8. Restore original hyperlinks with appropriate translations
 
 ### Performance Optimization
 - Pre-compiled pattern matching
@@ -204,7 +226,26 @@ MIT License - see LICENSE file for details
 
 ## Changelog
 
-### v0.1.5 (Current)
+### v0.1.8 (Current)
+- **Gaming Slang**: Added 80+ WoW gaming terms from real player chat logs
+- **Frozen Phrases**: Multi-character gaming terms (精华满 = "Essence full", 周常 = "weekly", 老克 = "KT")
+- **Quality Fixes**: Fixed 339 quote syntax errors across dictionary and tooltips
+- **Real-World Testing**: Analyzed 664 actual translations, refined based on gameplay data
+- **Better Translations**: 来T = "need T", 速刷 = "speed run", 修车 = "repair run", 龙虎金 = "ZG Tiger/Raptor"
+
+### v0.1.7
+- **Tooltip Formatting**: Fixed awkward line breaks and orphaned words in hover tooltips
+- **Smart Word-Wrap**: 45-character line width prevents short single-word lines
+- **Player Name Fix**: Unit tooltips (portraits) preserve original names for invites
+- **Polish**: Cleaner, more professional tooltip presentation
+
+### v0.1.6
+- **Interactive Tooltips**: Hover over cyan Chinese text for detailed cultural/historical explanations
+- **2,415 Tooltip Entries**: Academic terms like 三国演义, 四大发明 with full context
+- **Smart Display**: Shortened 2,415 verbose entries in chat, full text on hover
+- **Click Support**: Click cyan terms to print full explanation to chat
+
+### v0.1.5
 - **Grammar-Aware Translations**: Added 80+ grammar-aware frozen phrases
 - **Natural Questions**: Post-processing rules for question particles (吗/呢 → ?)
 - **Aspect Markers**: Proper handling of completed actions (了), modal verbs, negation

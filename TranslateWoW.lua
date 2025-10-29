@@ -1,6 +1,6 @@
 --[[
 	CN to EN Translate WoW
-	Version: 0.1.7
+	Version: 0.1.8
 	Author: Sanjay Bhat
 	Date: October 2025
 	
@@ -9,12 +9,19 @@
 	
 	Features:
 	- 114,369 clean dictionary entries from CC-CEDICT (NO metadata!)
-	- 588 WoW-specific gaming terms
+	- 638 WoW-specific gaming terms + slang
 	- Grammar-aware translations (v0.1.5) for natural WoW chat
 	- Up to 15-character phrase matching
 	- Smart WoW markup preservation (item links, player names, colors)
 	- Automatic translation logging for quality improvement
 	- Zero performance impact (instant cached lookups)
+	
+	v0.1.8 Changes (Oct 29, 2025):
+	- GAMING SLANG: Added 50+ critical WoW chat terms from real player logs
+	- IMPROVED: "开组" = forming, "速刷" = speed run, "许愿" = reserve, etc.
+	- QUALITY: Analyzed 368 logged translations using Gemini Flash AI
+	- SMARTER: Now understands raid recruitment, dungeon slang, player specs
+	- FIXED: Player names in tooltips/portraits preserved for invites
 	
 	v0.1.7 Changes (Oct 29, 2025):
 	- TOOLTIP FORMAT: Fixed awkward line breaks and orphaned words in hover tooltips
@@ -87,7 +94,7 @@ local OUTPUT_CHECK_INTERVAL = 0.1 -- Check output file every 100ms
 
 -- Saved variables
 TranslateWoWDB = TranslateWoWDB or {}
-TranslateWoWDB.version = "0.1.7"  -- Version marker to verify which addon is loaded
+TranslateWoWDB.version = "0.1.8"  -- Version marker to verify which addon is loaded
 TranslateWoWDB.translation_log = TranslateWoWDB.translation_log or {}
 
 -- Tooltip dictionary (loaded from TranslateWoW_Tooltips.lua)
@@ -831,27 +838,52 @@ local function hookTooltips()
                 originalOnShow()
             end
             
+            -- Check if this is a unit tooltip (player, NPC, etc.) by checking the owner frame
+            -- If the tooltip is showing a unit, DON'T translate the first line (player name)
+            local isUnitTooltip = false
+            local ownerName = ""
+            
+            -- In vanilla 1.12, check common unit frame patterns
+            if this.GetOwner then
+                local owner = this:GetOwner()
+                if owner then
+                    ownerName = owner:GetName() or ""
+                    -- Check if this is a unit frame (player portrait, target frame, party member, etc.)
+                    if string.find(ownerName, "PlayerFrame") or 
+                       string.find(ownerName, "TargetFrame") or
+                       string.find(ownerName, "PartyMemberFrame") or
+                       string.find(ownerName, "RaidFrame") or
+                       string.find(ownerName, "UnitButton") or
+                       string.find(ownerName, "UnitFrame") then
+                        isUnitTooltip = true
+                    end
+                end
+            end
+            
             -- Process tooltip text - instant dictionary translation
             local tooltipName = GameTooltip:GetName()
             for i = 1, GameTooltip:NumLines() do
-                local leftText = getglobal(tooltipName .. "TextLeft" .. i)
-                if leftText then
-                    local text = leftText:GetText()
-                    if text and containsChinese(text) then
-                        local translatedText = translateText(text)
-                        if translatedText ~= text then
-                            leftText:SetText(translatedText)
+                -- Skip line 1 if this is a unit tooltip (preserve player names)
+                if not (isUnitTooltip and i == 1) then
+                    local leftText = getglobal(tooltipName .. "TextLeft" .. i)
+                    if leftText then
+                        local text = leftText:GetText()
+                        if text and containsChinese(text) then
+                            local translatedText = translateText(text)
+                            if translatedText ~= text then
+                                leftText:SetText(translatedText)
+                            end
                         end
                     end
-                end
-                
-                local rightText = getglobal(tooltipName .. "TextRight" .. i)
-                if rightText then
-                    local text = rightText:GetText()
-                    if text and containsChinese(text) then
-                        local translatedText = translateText(text)
-                        if translatedText ~= text then
-                            rightText:SetText(translatedText)
+                    
+                    local rightText = getglobal(tooltipName .. "TextRight" .. i)
+                    if rightText then
+                        local text = rightText:GetText()
+                        if text and containsChinese(text) then
+                            local translatedText = translateText(text)
+                            if translatedText ~= text then
+                                rightText:SetText(translatedText)
+                            end
                         end
                     end
                 end
@@ -934,7 +966,7 @@ end
 function twInit()
     -- Notify the user that we're loading with CLEAR version identifier
     DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000=====================================================|r")
-    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00TranslateWoW v0.1.7 LOADED|r")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00TranslateWoW v0.1.8 LOADED|r")
     DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFFHover over CYAN Chinese text for full translations!|r")
     DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Type /tw for commands|r")
     DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000=====================================================|r")
@@ -988,14 +1020,14 @@ function twEvent()
     elseif event == "PLAYER_LOGIN" then
         debug("Player logged in, setting up translation system")
         
-        -- Set up chat frame hooking (FIRST - most important!)
+        -- Set up custom hyperlink tooltips (FIRST - before any messages!)
+        setupTooltipHyperlinks()
+        
+        -- Set up chat frame hooking (handles all incoming messages)
         hookChatFrames()
         
         -- Set up tooltip hooking
         hookTooltips()
-        
-        -- Set up custom hyperlink tooltips
-        setupTooltipHyperlinks()
         
         -- Initialize response table
         if not TranslateWoWDB.responses then
