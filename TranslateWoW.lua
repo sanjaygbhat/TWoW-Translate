@@ -1,20 +1,30 @@
 --[[
 	CN to EN Translate WoW
-	Version: 0.1.8
+	Version: 0.2.0
 	Author: Sanjay Bhat
-	Date: October 2025
+	Date: October 30, 2025
 	
 	Chinese to English translation addon for World of Warcraft 1.12 (Vanilla)
 	Provides instant translation for Chinese text in tooltips, chat, quests, and UI elements.
 	
 	Features:
-	- 114,369 clean dictionary entries from CC-CEDICT (NO metadata!)
-	- 638 WoW-specific gaming terms + slang
-	- Grammar-aware translations (v0.1.5) for natural WoW chat
+	- 4,960 HIGH-QUALITY translations from PostgreSQL Translation Pipeline V2
+	- Real game content from SavedVariables (actual player chat, not generic dictionary)
+	- WoW-specific context (dungeons, raids, loot rules, guild recruitment)
+	- Gaming slang aware (4=1, 速刷, 许愿, 科技, etc.)
 	- Up to 15-character phrase matching
 	- Smart WoW markup preservation (item links, player names, colors)
-	- Automatic translation logging for quality improvement
+	- Automatic translation logging for continuous improvement
 	- Zero performance impact (instant cached lookups)
+	
+	v0.2.0 Changes (Oct 30, 2025):
+	- MAJOR UPDATE: Complete translation overhaul with real game content
+	- 4,960 HIGH-QUALITY translations from actual SavedVariables (5,025 phrases extracted)
+	- WOW-CONTEXT AWARE: Gemini AI understands dungeons, raids, loot rules, gaming slang
+	- REAL PLAYER CHAT: Guild recruitment, raid LFG, trade services, item stats
+	- 81% SMALLER: Dictionary reduced from 4.5 MB to 852 KB (focused translations)
+	- BETTER QUALITY: Context-aware translations (大监狱=Karazhan, 4=1=loot rule, 速刷=speed run)
+	- Examples: 来T="need tank", 许愿="reserve", 科技="optimized player"
 	
 	v0.1.8 Changes (Oct 29, 2025):
 	- GAMING SLANG: Added 50+ critical WoW chat terms from real player logs
@@ -94,7 +104,7 @@ local OUTPUT_CHECK_INTERVAL = 0.1 -- Check output file every 100ms
 
 -- Saved variables
 TranslateWoWDB = TranslateWoWDB or {}
-TranslateWoWDB.version = "0.1.8"  -- Version marker to verify which addon is loaded
+TranslateWoWDB.version = "0.2.0"  -- Version marker to verify which addon is loaded
 TranslateWoWDB.translation_log = TranslateWoWDB.translation_log or {}
 
 -- Tooltip dictionary (loaded from TranslateWoW_Tooltips.lua)
@@ -966,9 +976,9 @@ end
 function twInit()
     -- Notify the user that we're loading with CLEAR version identifier
     DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000=====================================================|r")
-    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00TranslateWoW v0.1.8 LOADED|r")
-    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFFHover over CYAN Chinese text for full translations!|r")
-    DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Type /tw for commands|r")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00TranslateWoW v0.2.0 LOADED|r")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF4,960 WoW-context translations from real gameplay!|r")
+    DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Hover over CYAN text for details • /tw for commands|r")
     DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000=====================================================|r")
     
     -- Register events we want to listen for
