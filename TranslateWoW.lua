@@ -223,15 +223,15 @@ local function applyGrammarRules(originalChinese, translatedEnglish)
     local result = translatedEnglish
     
     -- RULE 1: Question particle 吗 at end → add "?" if missing
-    if string.match(originalChinese, "吗？?$") or string.match(originalChinese, "吗$") then
-        if not string.match(result, "?$") then
+    if string.find(originalChinese, "吗？?$") or string.find(originalChinese, "吗$") then
+        if not string.find(result, "?$") then
             result = result .. "?"
         end
     end
     
     -- RULE 2: Question particle 呢 at end → add "?" if missing
-    if string.match(originalChinese, "呢？?$") or string.match(originalChinese, "呢$") then
-        if not string.match(result, "?$") then
+    if string.find(originalChinese, "呢？?$") or string.find(originalChinese, "呢$") then
+        if not string.find(result, "?$") then
             result = result .. "?"
         end
     end
@@ -508,15 +508,15 @@ local function translateHyperlinkContent(linkCode)
     
     -- Extract components using proper pattern matching
     -- Pattern: |Htype:data|h[DisplayText]|h
-    local linkData = string.match(linkCode, "|H(.-)|h")  -- e.g., "item:12345:..." or "player:中文名"
-    local displayText = string.match(linkCode, "%[(.-)%]")  -- Text between brackets
+    local _, _, linkData = string.find(linkCode, "|H(.-)|h")  -- e.g., "item:12345:..." or "player:中文名"
+    local _, _, displayText = string.find(linkCode, "%[(.-)%]")  -- Text between brackets
     
     if not linkData or not displayText then
         return linkCode  -- Malformed, return as-is
     end
     
     -- Check link type
-    local linkType = string.match(linkData, "^(%w+):")
+    local _, _, linkType = string.find(linkData, "^(%w+):")
     
     if linkType == "item" or linkType == "quest" then
         -- ITEM/QUEST LINKS: Keep display text AS-IS (don't translate)
