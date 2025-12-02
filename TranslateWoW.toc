@@ -1,8 +1,8 @@
 ## Interface: 11200
-## Title: |cFFFFFFFFCN to EN Translate|r
-## Notes: Chinese to English translation addon with 115K+ dictionary entries, 588 WoW-specific terms. Instant translation for tooltips, chat, quests, and NPCs. |cFF00FF00v0.1.0|r
+## Title: |cFFFFFFFFCN to EN Translate|r |cFF00FF00[Complete Gaming Vocabulary]|r
+## Notes: Chinese to English translation addon with 116K+ dictionary entries, 858+ WoW-specific terms. Complete gaming abbreviations (FS, SS, STSM, MC), measure words, and LFG phrases! UTF-8 bugs fixed. |cFF00FF00v0.3.0|r
 ## Author: Sanjay Bhat
-## Version: 0.1.0
+## Version: 0.3.0
 ## Revision: $Id:$
 ## SavedVariables: TranslateWoWDB
 TranslateWoW_Dictionary.lua
