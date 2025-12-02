@@ -1,6 +1,6 @@
 --[[
 	CN to EN Translate WoW
-	Version: 0.3.0 (Complete Gaming Vocabulary)
+	Version: 0.3.1 (Hyperlink Preservation Fix)
 	Author: Sanjay Bhat
 	Date: December 2025
 	
@@ -157,8 +157,41 @@ end
 -- 6. Smart English output with proper word ordering and grammar hints
 -- 7. 11-factor advanced scoring for natural translations
 -- 8. THIS IS THE MAXIMUM POSSIBLE QUALITY FOR DICTIONARY TRANSLATION
+-- 9. HYPERLINK PRESERVATION: Player names, items, quests stay clickable in chat
 -- PERFORMANCE OPTIMIZED: Early cache checks, reduced string operations
 -- ===============================================================================
+
+-- Helper function to extract and preserve WoW hyperlinks
+local function extractHyperlinks(text)
+    local links = {}
+    local linkCount = 0
+    local cleanText = text
+    
+    -- Extract all WoW hyperlinks (|H....|h[...]|h format)
+    -- This preserves player names, items, quests, etc.
+    local pattern = "|H([^|]+)|h%[([^%]]+)%]|h"
+    
+    cleanText = string.gsub(cleanText, pattern, function(linkData, linkText)
+        linkCount = linkCount + 1
+        local placeholder = "<<LINK" .. linkCount .. ">>"
+        links[placeholder] = "|H" .. linkData .. "|h[" .. linkText .. "]|h"
+        return placeholder
+    end)
+    
+    return cleanText, links
+end
+
+-- Helper function to restore hyperlinks after translation
+local function restoreHyperlinks(text, links)
+    if not links then return text end
+    
+    for placeholder, original in pairs(links) do
+        text = string.gsub(text, placeholder, original)
+    end
+    
+    return text
+end
+
 local function translateText(text)
     if not text or text == "" or not TRANSLATE then
         return text
@@ -173,9 +206,21 @@ local function translateText(text)
         return text
     end
     
+    -- CRITICAL: Extract hyperlinks BEFORE translation
+    -- This preserves player names, items, quests in their original form
+    local cleanText, hyperlinks = extractHyperlinks(text)
+    
+    -- If after removing hyperlinks there's no Chinese, return original with links
+    if not containsChinese(cleanText) then
+        return text
+    end
+    
     -- Try direct dictionary lookup (fastest path)
-    if TranslateWoW_Dictionary and TranslateWoW_Dictionary[text] then
-        local translation = TranslateWoW_Dictionary[text]
+    if TranslateWoW_Dictionary and TranslateWoW_Dictionary[cleanText] then
+        local translation = TranslateWoW_Dictionary[cleanText]
+        
+        -- Restore hyperlinks after translation
+        translation = restoreHyperlinks(translation, hyperlinks)
         
         -- PERFORMANCE: Manage cache size
         if translationCacheSize >= MAX_CACHE_SIZE then
@@ -199,10 +244,11 @@ local function translateText(text)
     end
     
     -- ADVANCED PHRASE MATCHING with PROPER UTF-8 handling
+    -- Work on cleanText (without hyperlinks)
     local hasTranslation = false
     local result = ""
     local i = 1
-    local textLen = string.len(text)
+    local textLen = string.len(cleanText)
     local lastWasChinese = false
     
     -- Helper function to check if we're at a valid UTF-8 character boundary
@@ -240,9 +286,9 @@ local function translateText(text)
     end
     
     -- CRITICAL FIX: Ensure we start at a valid character boundary
-    if not isCharBoundary(text, i) then
+    if not isCharBoundary(cleanText, i) then
         -- Skip to next valid boundary if somehow misaligned
-        while i <= textLen and not isCharBoundary(text, i) do
+        while i <= textLen and not isCharBoundary(cleanText, i) do
             i = i + 1
         end
     end
@@ -263,8 +309,8 @@ local function translateText(text)
             local endPos = i + phraseLen - 1
             if endPos <= textLen then
                 -- CRITICAL FIX: Only try to match if end position is at character boundary
-                if isCharBoundary(text, endPos + 1) or endPos == textLen then
-                    local phrase = string.sub(text, i, endPos)
+                if isCharBoundary(cleanText, endPos + 1) or endPos == textLen then
+                    local phrase = string.sub(cleanText, i, endPos)
                     
                     if TranslateWoW_Dictionary[phrase] then
                         matchedTranslation = TranslateWoW_Dictionary[phrase]
@@ -294,21 +340,21 @@ local function translateText(text)
                 -- Advance by matched phrase length
                 i = i + matchedLen
                 -- CRITICAL: Ensure we're still at a valid boundary after advancement
-                if i <= textLen and not isCharBoundary(text, i) then
-                    while i <= textLen and not isCharBoundary(text, i) do
+                if i <= textLen and not isCharBoundary(cleanText, i) then
+                    while i <= textLen and not isCharBoundary(cleanText, i) do
                         i = i + 1
                     end
                 end
             else
                 -- No match found - handle single character properly with UTF-8 awareness
-                local charLen = getUTF8CharLen(text, i)
+                local charLen = getUTF8CharLen(cleanText, i)
                 
                 if charLen == 0 then
                     -- Invalid UTF-8 or misaligned - skip this byte
                     i = i + 1
                 elseif charLen == 1 then
                     -- ASCII character - preserve as-is
-                    local char = string.sub(text, i, i)
+                    local char = string.sub(cleanText, i, i)
                     result = result .. char
                     
                     -- Don't add extra spacing after punctuation/spaces
@@ -321,7 +367,7 @@ local function translateText(text)
                 else
                     -- Multi-byte character (Chinese/Unicode) - keep as-is since no translation found
                     local endPos = math.min(i + charLen - 1, textLen)
-                    local char = string.sub(text, i, endPos)
+                    local char = string.sub(cleanText, i, endPos)
                     result = result .. char
                     i = i + charLen
                     lastWasChinese = false  -- Untranslated Chinese
@@ -336,6 +382,10 @@ local function translateText(text)
     if hasTranslation then
         -- PERFORMANCE: Combine cleanup operations
         result = string.gsub(string.gsub(string.gsub(result, "  +", " "), "^%s+", ""), "%s+$", "")
+        
+        -- CRITICAL: Restore hyperlinks after translation
+        -- This ensures player names, items, quests remain clickable in chat
+        result = restoreHyperlinks(result, hyperlinks)
         
         -- PERFORMANCE: Manage cache size before adding
         if translationCacheSize >= MAX_CACHE_SIZE then
@@ -656,7 +706,7 @@ end
 -- Initialize the addon
 function twInit()
 	-- Notify the user that we're loading
-	DEFAULT_CHAT_FRAME:AddMessage("|cFF87CEEBTranslateWoW v0.3.0|r |cFF00FF00Complete Gaming Vocabulary!|r - Use |cFFFFFFFF/tw status|r for info")
+	DEFAULT_CHAT_FRAME:AddMessage("|cFF87CEEBTranslateWoW v0.3.1|r |cFF00FF00Player Names Stay Clickable!|r - Use |cFFFFFFFF/tw status|r for info")
     
     -- Register events we want to listen for
     this:RegisterEvent("ADDON_LOADED")
